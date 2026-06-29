@@ -61,12 +61,12 @@ function hungarian(costMatrix: number[][]): number[] {
 }
 
 // ── Build pairs: Hungarian matching within each tonal zone ──
-interface PairData {
+export interface PairData {
   tLab: { L: number; a: number; b: number };
   sLab: { L: number; a: number; b: number };
 }
 
-function buildPairs(
+export function buildPairs(
   sourcePalette: ExtractedColor[],
   targetPalette: ExtractedColor[],
 ): PairData[] {
@@ -119,7 +119,7 @@ const DAMPEN_MIN = 0.3;
 const DAMPEN_MAX = 0.85;
 const DAMPEN_SIGMA = 45;
 
-function adaptiveDampen(distToAnchor: number): number {
+export function adaptiveDampen(distToAnchor: number): number {
   if (distToAnchor <= 15) return DAMPEN_MIN;
   if (distToAnchor >= 60) return DAMPEN_MAX;
   const t = (distToAnchor - 15) / DAMPEN_SIGMA;
@@ -131,7 +131,7 @@ function adaptiveDampen(distToAnchor: number): number {
 // boundaries / banding), ALL pairs contribute via Gaussian weight by LAB
 // distance to the target anchor.  The result is C∞ smooth across the image.
 
-const BLEND_SIGMA = 20; // wider = smoother but less precise mapping
+export const BLEND_SIGMA = 20; // wider = smoother but less precise mapping
 
 export function applyColorTransfer(
   sourcePalette: ExtractedColor[],

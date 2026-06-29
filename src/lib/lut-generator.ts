@@ -1,5 +1,6 @@
 import type { ExtractedColor } from "@/types/color";
-import { rgbToHsl, rgbToLab, deltaE } from "./color-converters";
+import { rgbToHsl, rgbToLab, labToRgb, deltaE } from "./color-converters";
+import { buildPairs, adaptiveDampen, BLEND_SIGMA } from "./color-transfer";
 
 function clamp01(v: number) { return Math.max(0, Math.min(1, v)); }
 
@@ -75,3 +76,75 @@ export function generatePaletteCubeLut(palette: ExtractedColor[], _targetPalette
   lines.push("");
   return lines.join("\n");
 }
+
+// Swap LUT: Hungarian-paired Gaussian-blend delta-preserving grade — matches
+// the color-transfer pipeline so the .cube file produces the same visual result
+// as the in-browser swap.
+export function generateSwapCubeLut(
+  sourcePalette: ExtractedColor[],
+  targetPalette: ExtractedColor[],
+  size: number = 65,
+): string {
+  const pairs = buildPairs(sourcePalette, targetPalette);
+  const inv2sig2 = 1 / (2 * BLEND_SIGMA * BLEND_SIGMA);
+
+  const lines: string[] = [
+    `# Swap LUT — ${pairs.length} zone-matched pairs`,
+    `# Hungarian + Gaussian blend + adaptive dampen`,
+    "",
+    `TITLE "Swap LUT (${sourcePalette.length}s → ${targetPalette.length}t)"`,
+    "",
+    `LUT_3D_SIZE ${size}`,
+    "",
+  ];
+
+  for (let ri = 0; ri < size; ri++) {
+    for (let gi = 0; gi < size; gi++) {
+      for (let bi = 0; bi < size; bi++) {
+        const ir = Math.round((ri / (size - 1)) * 255);
+        const ig = Math.round((gi / (size - 1)) * 255);
+        const ib = Math.round((bi / (size - 1)) * 255);
+
+        const pixLab = rgbToLab(ir, ig, ib);
+
+        // Gaussian weights by LAB distance to each target anchor (matches swap)
+        const weights = new Float64Array(pairs.length);
+        let totalW = 0;
+        for (let j = 0; j < pairs.length; j++) {
+          const d = deltaE(pixLab, pairs[j].tLab);
+          const w = Math.exp(-(d * d) * inv2sig2);
+          weights[j] = w;
+          totalW += w;
+        }
+
+        if (totalW < 1e-9) {
+          lines.push(
+            `${(ir / 255).toFixed(6)} ${(ig / 255).toFixed(6)} ${(ib / 255).toFixed(6)}`,
+          );
+          continue;
+        }
+
+        // Weighted blend of delta-preserving remapped LAB (matches swap)
+        let newL = 0, newA = 0, newB = 0;
+        for (let j = 0; j < pairs.length; j++) {
+          const w = weights[j] / totalW;
+          const { sLab, tLab } = pairs[j];
+          const dampen = adaptiveDampen(deltaE(pixLab, tLab));
+          newL += (sLab.L + (pixLab.L - tLab.L) * dampen) * w;
+          newA += (sLab.a + (pixLab.a - tLab.a) * dampen) * w;
+          newB += (sLab.b + (pixLab.b - tLab.b) * dampen) * w;
+        }
+
+        newL = Math.max(0, Math.min(100, newL));
+        const [nr, ng, nb] = labToRgb({ L: newL, a: newA, b: newB });
+        lines.push(
+          `${(nr / 255).toFixed(6)} ${(ng / 255).toFixed(6)} ${(nb / 255).toFixed(6)}`,
+        );
+      }
+    }
+  }
+
+  lines.push("");
+  return lines.join("\n");
+}
+

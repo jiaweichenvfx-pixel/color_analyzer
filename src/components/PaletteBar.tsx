@@ -12,6 +12,10 @@ interface PaletteBarProps {
   compact?: boolean;
   showLutDownload?: boolean;
   lutColors?: ExtractedColor[];
+  swapSourceColors?: ExtractedColor[];
+  swapTargetColors?: ExtractedColor[];
+  swapSourceLabel?: string;
+  swapTargetLabel?: string;
 }
 
 const tonalLabels: Record<ExtractedColor["tonalRange"], string> = {
@@ -83,14 +87,25 @@ function Swatch({ color, compact }: { color: ExtractedColor; compact?: boolean }
   );
 }
 
-export function PaletteBar({ colors, label, compact, showLutDownload, lutColors }: PaletteBarProps) {
+export function PaletteBar({ colors, label, compact, showLutDownload, lutColors, swapSourceColors, swapTargetColors, swapSourceLabel, swapTargetLabel }: PaletteBarProps) {
+  const isSwap = !!(swapSourceColors && swapTargetColors && swapSourceColors.length > 0 && swapTargetColors.length > 0);
   return (
     <div>
       {label && (
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-medium text-slate-500">{label}</h3>
           {showLutDownload && (
-            <LutDownloadButton colors={lutColors && lutColors.length > 0 ? lutColors : colors} label={label || "palette"} />
+            <div className="flex gap-2">
+              {isSwap && (
+                <LutDownloadButton
+                  colors={swapSourceColors}
+                  label={swapSourceLabel || "src"}
+                  targetColors={swapTargetColors}
+                  targetLabel={swapTargetLabel || "tgt"}
+                />
+              )}
+              <LutDownloadButton colors={lutColors && lutColors.length > 0 ? lutColors : colors} label={label || "palette"} />
+            </div>
           )}
         </div>
       )}      <div className={cn("grid gap-3", compact ? "grid-cols-6" : "grid-cols-3 sm:grid-cols-6")}>
