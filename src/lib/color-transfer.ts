@@ -126,7 +126,13 @@ function adaptiveDampen(distToAnchor: number): number {
   return DAMPEN_MIN + t * (DAMPEN_MAX - DAMPEN_MIN);
 }
 
-// ── Per-pixel delta-preserving color transfer ──
+// ── Gaussian-blended delta-preserving color transfer ──
+// Instead of snapping each pixel to ONE nearest anchor (which creates hard
+// boundaries / banding), ALL pairs contribute via Gaussian weight by LAB
+// distance to the target anchor.  The result is C∞ smooth across the image.
+
+const BLEND_SIGMA = 20; // wider = smoother but less precise mapping
+
 export function applyColorTransfer(
   sourcePalette: ExtractedColor[],
   targetPalette: ExtractedColor[],
@@ -138,6 +144,7 @@ export function applyColorTransfer(
   if (pairs.length === 0) return new Uint8ClampedArray(pixelData);
 
   const result = new Uint8ClampedArray(pixelData.length);
+  const inv2sig2 = 1 / (2 * BLEND_SIGMA * BLEND_SIGMA);
 
   for (let i = 0; i < pixelData.length; i += 4) {
     const r = pixelData[i], g = pixelData[i + 1], b = pixelData[i + 2], a = pixelData[i + 3];
@@ -148,19 +155,33 @@ export function applyColorTransfer(
 
     const pixLab = rgbToLab(r, g, b);
 
-    let best = 0, bestD = Infinity;
+    // Gaussian weights by LAB distance to each target anchor
+    const weights = new Float64Array(pairs.length);
+    let totalW = 0;
     for (let j = 0; j < pairs.length; j++) {
       const d = deltaE(pixLab, pairs[j].tLab);
-      if (d < bestD) { bestD = d; best = j; }
+      const w = Math.exp(-(d * d) * inv2sig2);
+      weights[j] = w;
+      totalW += w;
     }
 
-    const { sLab, tLab } = pairs[best];
-    const dampen = adaptiveDampen(bestD);
+    if (totalW < 1e-9) {
+      result[i] = r; result[i + 1] = g; result[i + 2] = b; result[i + 3] = a;
+      continue;
+    }
 
-    const newL = Math.max(0, Math.min(100, sLab.L + (pixLab.L - tLab.L) * dampen));
-    const newA = sLab.a + (pixLab.a - tLab.a) * dampen;
-    const newB = sLab.b + (pixLab.b - tLab.b) * dampen;
+    // Weighted blend of delta-preserving remapped LAB values
+    let newL = 0, newA = 0, newB = 0;
+    for (let j = 0; j < pairs.length; j++) {
+      const w = weights[j] / totalW;
+      const { sLab, tLab } = pairs[j];
+      const dampen = adaptiveDampen(deltaE(pixLab, tLab));
+      newL += (sLab.L + (pixLab.L - tLab.L) * dampen) * w;
+      newA += (sLab.a + (pixLab.a - tLab.a) * dampen) * w;
+      newB += (sLab.b + (pixLab.b - tLab.b) * dampen) * w;
+    }
 
+    newL = Math.max(0, Math.min(100, newL));
     const [nr, ng, nb] = labToRgb({ L: newL, a: newA, b: newB });
     result[i] = nr;
     result[i + 1] = ng;
