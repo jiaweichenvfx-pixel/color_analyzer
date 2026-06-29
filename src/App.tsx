@@ -11,6 +11,7 @@ import { SwapControls } from "@/components/SwapControls";
 import { SwapResultView } from "@/components/SwapResultView";
 import { LutPreview } from "@/components/LutPreview";
 import { LutTester } from "@/components/LutTester";
+import { PresetPicker } from "@/components/PresetPicker";
 import { Separator } from "@/components/ui/separator";
 import { useImageColors } from "@/hooks/use-image-colors";
 import { useColorTransfer } from "@/hooks/use-color-transfer";
@@ -271,6 +272,11 @@ export default function App() {
           </>
         )}
       </main>
+
+      {/* Classic Preset Picker */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-4">
+        <PresetPicker />
+      </section>
 
       {/* Standalone LUT Tester */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
