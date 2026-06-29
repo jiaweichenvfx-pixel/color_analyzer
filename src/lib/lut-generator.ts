@@ -6,7 +6,7 @@ function clamp01(v: number) { return Math.max(0, Math.min(1, v)); }
 
 // Download LUT: pushes all colors toward the nearest palette anchor.
 // Pure grading — no source/target pairing needed.
-export function generatePaletteCubeLut(palette: ExtractedColor[], _targetPalette?: unknown, size: number = 65): string {
+export function generatePaletteCubeLut(palette: ExtractedColor[], _targetPalette?: unknown, size: number = 129, strengthScale: number = 1): string {
   if (palette.length === 0) {
     const lines = [`TITLE "Identity"`, `LUT_3D_SIZE ${size}`, ""];
     for (let ri = 0; ri < size; ri++)
@@ -62,7 +62,7 @@ export function generatePaletteCubeLut(palette: ExtractedColor[], _targetPalette
 
         // Guarantee visible effect: min strength 0.35 even for neutral pixels
         const satBoost = clamp01(hsl.s / 25);
-        const strength = satBoost * 0.65 + (1 - satBoost) * 0.35;
+        const strength = (satBoost * 0.65 + (1 - satBoost) * 0.35) * strengthScale;
 
         const finalR = clamp01((ir / 255) + (tr - ir / 255) * strength);
         const finalG = clamp01((ig / 255) + (tg - ig / 255) * strength);
@@ -83,7 +83,7 @@ export function generatePaletteCubeLut(palette: ExtractedColor[], _targetPalette
 export function generateSwapCubeLut(
   sourcePalette: ExtractedColor[],
   targetPalette: ExtractedColor[],
-  size: number = 65,
+  size: number = 129,
 ): string {
   const pairs = buildPairs(sourcePalette, targetPalette);
   const inv2sig2 = 1 / (2 * BLEND_SIGMA * BLEND_SIGMA);

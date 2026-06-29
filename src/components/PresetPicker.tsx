@@ -41,6 +41,7 @@ export function PresetPicker() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [strength, setStrength] = useState(100); // 0-100
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgInputRef = useRef<HTMLInputElement>(null);
 
@@ -75,7 +76,7 @@ export function PresetPicker() {
       try {
         // Generate LUT text from preset colors
         const colors = toExtractedColors(preset.hex);
-        const lutText = generatePaletteCubeLut(colors, undefined, 65);
+        const lutText = generatePaletteCubeLut(colors, undefined, 65, strength / 100);
 
         // Parse and apply in-memory (no file download needed)
         const lut = parseCube(lutText);
@@ -111,12 +112,12 @@ export function PresetPicker() {
 
   const handleDownload = (preset: typeof colorPresets[number]) => {
     const colors = toExtractedColors(preset.hex);
-    const lut = generatePaletteCubeLut(colors, undefined, 65);
+    const lut = generatePaletteCubeLut(colors, undefined, 129, strength / 100);
     const blob = new Blob([lut], { type: "application/octet-stream" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `preset-${preset.name.replace(/\s+/g, "-").toLowerCase()}-65.cube`;
+    a.download = `preset-${preset.name.replace(/\s+/g, "-").toLowerCase()}-129.cube`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success(`已下载 ${preset.name} .cube`);
@@ -213,6 +214,22 @@ export function PresetPicker() {
               </Card>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Strength slider */}
+      {image && (
+        <div className="flex items-center gap-3 bg-slate-50 rounded-lg px-4 py-2">
+          <span className="text-xs text-slate-500 whitespace-nowrap">调色强度</span>
+          <input
+            type="range"
+            min={0}
+            max={150}
+            value={strength}
+            onChange={(e) => setStrength(Number(e.target.value))}
+            className="flex-1 h-1.5 accent-violet-500 cursor-pointer"
+          />
+          <span className="text-xs font-mono text-slate-600 w-9 text-right">{strength}%</span>
         </div>
       )}
 

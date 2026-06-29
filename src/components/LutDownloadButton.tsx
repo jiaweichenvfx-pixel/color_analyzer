@@ -15,11 +15,11 @@ export function LutDownloadButton({ colors, label, targetColors, targetLabel }: 
 
   const handleDownload = () => {
     const lut = isSwap
-      ? generateSwapCubeLut(colors, targetColors!, 65)
-      : generatePaletteCubeLut(colors, undefined, 65);
+      ? generateSwapCubeLut(colors, targetColors!, 129)
+      : generatePaletteCubeLut(colors, undefined, 129);
     const fileName = isSwap
-      ? `swap-${label}-to-${targetLabel}-65.cube`
-      : `palette-${label}-65.cube`;
+      ? `swap-${label}-to-${targetLabel}-129.cube`
+      : `palette-${label}-129.cube`;
     const blob = new Blob([lut], { type: "application/octet-stream" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -30,8 +30,8 @@ export function LutDownloadButton({ colors, label, targetColors, targetLabel }: 
   };
 
   const tooltip = isSwap
-    ? `${colors.length} source + ${targetColors!.length} target → Hungarian pair → 65³ swap LUT`
-    : `${colors.length} palette colors → 65³ LUT`;
+    ? `${colors.length} source + ${targetColors!.length} target → Hungarian pair → 129³ swap LUT`
+    : `${colors.length} palette colors → 129³ LUT`;
 
   return (
     <Button
