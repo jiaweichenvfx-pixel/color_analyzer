@@ -27,6 +27,7 @@ export interface ImageState {
   id: "a" | "b";
   dataUrl: string | null;
   palette: ExtractedColor[] | null;
+  fullPalette: ExtractedColor[] | null;
   harmonies: HarmonyScheme[] | null;
   isExtracting: boolean;
 }

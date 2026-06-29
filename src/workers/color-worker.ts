@@ -1,10 +1,10 @@
-import { extractColorsFromPixelData } from "@/lib/extraction";
+import { extractColorsFromPixelData, extractFullPalette } from "@/lib/extraction";
 import { applyColorTransfer } from "@/lib/color-transfer";
 import type { ExtractedColor } from "@/types/color";
 
 type WMsg = {
   data: {
-    type: "extract" | "transfer";
+    type: "extract" | "transfer" | "extract-full";
     id: string;
     pixelData: Uint8ClampedArray;
     width: number;
@@ -20,6 +20,11 @@ self.onmessage = (e: WMsg) => {
   if (msg.type === "extract") {
     const colors = extractColorsFromPixelData(msg.pixelData, msg.width, msg.height);
     self.postMessage({ type: "extract", id: msg.id, colors });
+  }
+
+  if (msg.type === "extract-full") {
+    const colors = extractFullPalette(msg.pixelData, msg.width, msg.height);
+    self.postMessage({ type: "extract-full", id: msg.id, colors });
   }
 
   if (msg.type === "transfer") {

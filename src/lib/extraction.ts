@@ -251,7 +251,111 @@ export function extractColorsFromPixelData(
   });
 }
 
-// Worker message types
+// ── Full palette extraction for color transfer / LUT (40-80 colors) ──
+// Uses higher K, tighter merge, larger source image for maximum color detail.
+export function extractFullPalette(
+  pixelData: Uint8ClampedArray,
+  width: number,
+  height: number,
+  _count: number = 20,
+): ExtractedColor[] {
+  const samples: Sample[] = [];
+  const data = pixelData;
+  const step = 4;
+
+  for (let i = 0; i < data.length; i += step * 8) {
+    const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
+    if (a < 128) continue;
+    const avg = (r + g + b) / 3;
+    if (avg < 10 || avg > 245) continue;
+    samples.push({ lab: rgbToLab(r, g, b), r, g, b });
+  }
+
+  if (samples.length < 20) return [];
+
+  // Lightweight sampling: stride=16 on 600px → ~1400 samples. K=min(30, samples/8).
+  // Fast enough for main thread (<100ms), keeps UI responsive.
+  const k = Math.min(30, Math.floor(samples.length / 8));
+  const { centroids, assignments } = kmeansPlusPlus(samples, k);
+
+  // Build clusters
+  const clusters = centroids.map((c, i) => {
+    const assigned: Sample[] = [];
+    for (let idx = 0; idx < assignments.length; idx++) {
+      if (assignments[idx] === i) assigned.push(samples[idx]);
+    }
+    const n = assigned.length || 1;
+    return {
+      centroid: c,
+      count: assigned.length,
+      r: Math.round(assigned.reduce((s, p) => s + p.r, 0) / n),
+      g: Math.round(assigned.reduce((s, p) => s + p.g, 0) / n),
+      b: Math.round(assigned.reduce((s, p) => s + p.b, 0) / n),
+    };
+  });
+
+  // Very tight merge (ΔE < 5) — preserves distinct hues
+  const merged: typeof clusters = [];
+  const sorted = clusters.sort((a, b) => b.count - a.count);
+  const used = new Array(sorted.length).fill(false);
+
+  for (let i = 0; i < sorted.length; i++) {
+    if (used[i]) continue;
+    let totalCount = sorted[i].count;
+    let totalR = sorted[i].r * sorted[i].count;
+    let totalG = sorted[i].g * sorted[i].count;
+    let totalB = sorted[i].b * sorted[i].count;
+
+    for (let j = i + 1; j < sorted.length; j++) {
+      if (used[j]) continue;
+      if (deltaE(sorted[i].centroid, sorted[j].centroid) < 5) {
+        used[j] = true;
+        totalCount += sorted[j].count;
+        totalR += sorted[j].r * sorted[j].count;
+        totalG += sorted[j].g * sorted[j].count;
+        totalB += sorted[j].b * sorted[j].count;
+      }
+    }
+
+    merged.push({
+      centroid: sorted[i].centroid,
+      count: totalCount,
+      r: Math.round(totalR / totalCount),
+      g: Math.round(totalG / totalCount),
+      b: Math.round(totalB / totalCount),
+    });
+  }
+
+  const totalPixels = merged.reduce((s, c) => s + c.count, 0);
+
+  return merged
+    .sort((a, b) => {
+      const la = rgbToLab(a.r, a.g, a.b).L;
+      const lb = rgbToLab(b.r, b.g, b.b).L;
+      return la - lb;
+    })
+    .filter(c => c.count / totalPixels > 0.001) // skip <0.1% noise
+    .map(c => {
+      const [r, g, b] = [c.r, c.g, c.b];
+      const lab = rgbToLab(r, g, b);
+      const hsl = rgbToHsl(r, g, b);
+      const tonalRange: ExtractedColor["tonalRange"] =
+        lab.L > 80 ? "highlight" : lab.L < 25 ? "shadow" : "midtone";
+
+      return {
+        hex: rgbToHex(r, g, b),
+        rgb: `rgb(${r}, ${g}, ${b})`,
+        hsl: `hsl(${hsl.h}, ${hsl.s}%, ${hsl.l}%)`,
+        h: hsl.h,
+        s: hsl.s,
+        l: hsl.l,
+        lab,
+        count: c.count,
+        percentage: Math.round((c.count / totalPixels) * 1000) / 10,
+        tonalRange,
+      } satisfies ExtractedColor;
+    });
+}
 export type WorkerMessage =
   | { type: "extract"; id: string; pixelData: Uint8ClampedArray; width: number; height: number }
   | { type: "transfer"; id: string; sourcePalette: ExtractedColor[]; targetPalette: ExtractedColor[]; pixelData: Uint8ClampedArray; width: number; height: number };

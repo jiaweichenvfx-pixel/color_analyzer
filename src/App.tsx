@@ -10,13 +10,14 @@ import { HarmonyTabs } from "@/components/HarmonyTabs";
 import { SwapControls } from "@/components/SwapControls";
 import { SwapResultView } from "@/components/SwapResultView";
 import { LutPreview } from "@/components/LutPreview";
+import { LutTester } from "@/components/LutTester";
 import { Separator } from "@/components/ui/separator";
 import { useImageColors } from "@/hooks/use-image-colors";
 import { useColorTransfer } from "@/hooks/use-color-transfer";
 import type { ImageState } from "@/types/color";
 
 function createEmptyState(id: "a" | "b"): ImageState {
-  return { id, dataUrl: null, palette: null, harmonies: null, isExtracting: false };
+  return { id, dataUrl: null, palette: null, fullPalette: null, harmonies: null, isExtracting: false };
 }
 
 export default function App() {
@@ -35,10 +36,11 @@ export default function App() {
         const dataUrl = e.target?.result as string;
         setImageA((s) => ({ ...s, dataUrl, isExtracting: true }));
         try {
-          const palette = await colorsA.extractColors(file);
+          const result = await colorsA.extractColors(file);
           setImageA((s) => ({
             ...s,
-            palette,
+            palette: result.palette,
+            fullPalette: result.fullPalette,
             harmonies: colorsA.harmonies,
             isExtracting: false,
           }));
@@ -60,10 +62,11 @@ export default function App() {
         const dataUrl = e.target?.result as string;
         setImageB((s) => ({ ...s, dataUrl, isExtracting: true }));
         try {
-          const palette = await colorsB.extractColors(file);
+          const result = await colorsB.extractColors(file);
           setImageB((s) => ({
             ...s,
-            palette,
+            palette: result.palette,
+            fullPalette: result.fullPalette,
             harmonies: colorsB.harmonies,
             isExtracting: false,
           }));
@@ -95,21 +98,22 @@ export default function App() {
       const source = sourceId === "a" ? imageA : imageB;
       const target = targetId === "a" ? imageA : imageB;
 
-      if (!source.palette || !target.palette || !target.dataUrl) {
+      if (!source.fullPalette || !target.fullPalette || !target.dataUrl) {
         toast.error("请先上传两张图片并完成配色分析");
         return;
       }
 
-      toast.info("正在进行配色互换...");
+      const nPairs = Math.min(source.fullPalette.length, target.fullPalette.length);
+      toast.info(`正在建立 ${nPairs} 组颜色映射...`);
       try {
         await transfer.apply(
           sourceId,
           targetId,
-          source.palette,
-          target.palette,
+          source.fullPalette,
+          target.fullPalette,
           target.dataUrl,
         );
-        toast.success("配色互换完成！");
+        toast.success(`配色互换完成 (${nPairs} 对映射)`);
       } catch {
         toast.error("配色互换失败");
       }
@@ -165,7 +169,7 @@ export default function App() {
         {hasAnyImage && !hasBothPalettes && selectedPalette && (
           <>
             <div className="bg-white rounded-xl border shadow-sm p-6">
-              <PaletteBar colors={selectedPalette} label="提取的配色" showLutDownload />
+              <PaletteBar colors={selectedPalette} label="提取的配色" showLutDownload lutColors={selectedImage === "a" ? imageA.fullPalette || undefined : imageB.fullPalette || undefined} />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -190,7 +194,7 @@ export default function App() {
         {/* Dual palette compare + swap */}
         {hasBothPalettes && (
           <>
-            <PaletteCompare paletteA={imageA.palette!} paletteB={imageB.palette!} />
+            <PaletteCompare paletteA={imageA.palette!} paletteB={imageB.palette!} fullPaletteA={imageA.fullPalette} fullPaletteB={imageB.fullPalette} />
 
             <SwapControls
               hasBothPalettes={hasBothPalettes}
@@ -267,6 +271,11 @@ export default function App() {
           </>
         )}
       </main>
+
+      {/* Standalone LUT Tester */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
+        <LutTester />
+      </section>
 
       {/* Footer */}
       <footer className="border-t bg-white/50 py-4 mt-12">

@@ -10,12 +10,12 @@ interface LutDownloadButtonProps {
 
 export function LutDownloadButton({ colors, label }: LutDownloadButtonProps) {
   const handleDownload = () => {
-    const lut = generatePaletteCubeLut(colors, 33);
+    const lut = generatePaletteCubeLut(colors, 65);
     const blob = new Blob([lut], { type: "application/octet-stream" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `palette-${label}-33.cube`;
+    a.download = `palette-${label}-65.cube`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -26,9 +26,10 @@ export function LutDownloadButton({ colors, label }: LutDownloadButtonProps) {
       size="sm"
       onClick={handleDownload}
       className="gap-1.5 text-xs"
+      title={`${colors.length} palette colors → 65³ LUT`}
     >
       <Download className="w-3.5 h-3.5" />
-      下载 LUT
+      下载 LUT ({colors.length}色)
     </Button>
   );
 }

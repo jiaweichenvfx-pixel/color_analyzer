@@ -1,21 +1,32 @@
 import type { ExtractedColor } from "@/types/color";
-import { rgbToHsl, hslToRgb } from "./color-converters";
+import { rgbToHsl, rgbToLab, deltaE } from "./color-converters";
 
 function clamp01(v: number) { return Math.max(0, Math.min(1, v)); }
 
-// Gaussian-weighted smooth blending — no hard boundaries between palette zones.
-// All palette colors contribute to every grid point, weighted by exp(-dL² / 2σ²).
-// Result is C∞ smooth: no jumps at any lightness boundary.
-function generatePaletteLut(palette: ExtractedColor[], size: number): string {
-  const pHSL = palette.map(c => [c.h, c.s, c.l] as const);
-  const sigma = 18; // gaussian spread: palette colors influence ~±36 lightness units
+// Download LUT: pushes all colors toward the nearest palette anchor.
+// Pure grading — no source/target pairing needed.
+export function generatePaletteCubeLut(palette: ExtractedColor[], _targetPalette?: unknown, size: number = 65): string {
+  if (palette.length === 0) {
+    const lines = [`TITLE "Identity"`, `LUT_3D_SIZE ${size}`, ""];
+    for (let ri = 0; ri < size; ri++)
+      for (let gi = 0; gi < size; gi++)
+        for (let bi = 0; bi < size; bi++)
+          lines.push(`${(ri/(size-1)).toFixed(6)} ${(gi/(size-1)).toFixed(6)} ${(bi/(size-1)).toFixed(6)}`);
+    return lines.join("\n");
+  }
 
+  const anchors = palette.map(c => ({
+    lab: c.lab,
+    rgb: c.hex.match(/^#(..)(..)(..)$/)!.slice(1).map(x => parseInt(x, 16)) as [number, number, number],
+  }));
+
+  const SIGMA = 25;
   const lines: string[] = [
-    `# Smooth Hue LUT — 配色分析器 Pro`,
-    `# ${palette.length} palette colors, ${size}³ grid, gaussian blend σ=${sigma}`,
-    `# All palette colors contribute at every point — no hard boundaries`,
+    `# Palette Grade LUT — ${palette.length} anchors`,
+    `# Gaussian pull toward nearest palette color`,
+    `# Strength 0.65 max, sat-adaptive, neutral-safe`,
     "",
-    `TITLE "Smooth Palette Look"`,
+    `TITLE "Palette Grade (${palette.length} colors)"`,
     "",
     `LUT_3D_SIZE ${size}`,
     "",
@@ -29,57 +40,38 @@ function generatePaletteLut(palette: ExtractedColor[], size: number): string {
         const ib = Math.round((bi / (size - 1)) * 255);
 
         const hsl = rgbToHsl(ir, ig, ib);
-        const is = hsl.s;
-        const il = hsl.l;
+        const pixLab = rgbToLab(ir, ig, ib);
 
-        // Near-neutral / extreme: pass identity untouched
-        if (is < 5 || il < 3 || il > 97) {
+        if (hsl.l < 2 || hsl.l > 98) {
           lines.push(`${(ir/255).toFixed(6)} ${(ig/255).toFixed(6)} ${(ib/255).toFixed(6)}`);
           continue;
         }
 
-        // Strength: ramps from 0 at is=5 to 0.85 at is=35
-        const strength = clamp01((is - 5) / 30) * 0.88;
+        // Weight ALL anchors by LAB distance
+        const rawW = anchors.map(a => Math.exp(-Math.pow(deltaE(pixLab, a.lab), 2) / (2 * SIGMA * SIGMA)));
+        const totalW = rawW.reduce((a, b) => a + b, 0);
 
-        // Gaussian weights over all palette colors by lightness
-        const weights: number[] = pHSL.map(([, , pl]) =>
-          Math.exp(-((il - pl) * (il - pl)) / (2 * sigma * sigma))
-        );
-        const totalW = weights.reduce((a, b) => a + b, 0);
-
-        // Weighted blend of hue shifts
-        let totalHueShift = 0;
-        let totalSatTarget = 0;
-        let totalLumTarget = 0;
-
-        for (let pi = 0; pi < pHSL.length; pi++) {
-          const w = weights[pi] / totalW;
-          const [ph, ps, pl] = pHSL[pi];
-
-          let hDelta = ph - hsl.h;
-          if (hDelta > 180) hDelta -= 360;
-          if (hDelta < -180) hDelta += 360;
-
-          totalHueShift += hDelta * w;
-          totalSatTarget += ps * w;
-          totalLumTarget += pl * w;
+        let tr = 0, tg = 0, tb = 0;
+        for (let k = 0; k < anchors.length; k++) {
+          const w = rawW[k] / totalW;
+          tr += (anchors[k].rgb[0] / 255) * w;
+          tg += (anchors[k].rgb[1] / 255) * w;
+          tb += (anchors[k].rgb[2] / 255) * w;
         }
 
-        // Apply blended shift
-        const nh = ((hsl.h + totalHueShift * strength) % 360 + 360) % 360;
-        const ns = clamp01(is / 100 + (totalSatTarget / 100 - is / 100) * strength * 0.35) * 100;
-        const nl = clamp01(il / 100 + (totalLumTarget / 100 - il / 100) * strength * 0.2) * 100;
+        // Guarantee visible effect: min strength 0.35 even for neutral pixels
+        const satBoost = clamp01(hsl.s / 25);
+        const strength = satBoost * 0.65 + (1 - satBoost) * 0.35;
 
-        const [outR, outG, outB] = hslToRgb(nh, ns, nl);
-        lines.push(`${(outR/255).toFixed(6)} ${(outG/255).toFixed(6)} ${(outB/255).toFixed(6)}`);
+        const finalR = clamp01((ir / 255) + (tr - ir / 255) * strength);
+        const finalG = clamp01((ig / 255) + (tg - ig / 255) * strength);
+        const finalB = clamp01((ib / 255) + (tb - ib / 255) * strength);
+
+        lines.push(`${finalR.toFixed(6)} ${finalG.toFixed(6)} ${finalB.toFixed(6)}`);
       }
     }
   }
 
   lines.push("");
   return lines.join("\n");
-}
-
-export function generatePaletteCubeLut(palette: ExtractedColor[], size: number = 65): string {
-  return generatePaletteLut(palette, size);
 }
