@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "color-analyzer-v3",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8080", "--directory", "/Volumes/flame_stone/AI/claude_code/color-analyzer-v2/dist"],
+      "port": 8080
+    }
+  ]
+}

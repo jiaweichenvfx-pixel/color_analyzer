@@ -1,0 +1,31 @@
+===================================
+      配色分析器 - 使用说明
+===================================
+
+【为什么直接打开不能用？】
+浏览器安全限制会阻止本地文件加载 JS/CSS，
+需要通过本地服务器运行。
+
+【Windows 用户】
+1. 双击运行 "启动.bat"
+2. 自动打开浏览器访问 http://localhost:8080
+
+【Mac/Linux 用户】
+1. 打开终端，进入本文件夹
+2. 运行: ./start.sh
+3. 浏览器访问 http://localhost:8080
+
+【手动启动（推荐）】
+如果你安装了 Python：
+  python -m http.server 8080
+
+如果你安装了 Node.js：
+  npx serve -p 8080
+
+然后浏览器访问 http://localhost:8080
+
+【文件说明】
+- index.html    主页面
+- assets/       样式和脚本文件
+- 启动.bat      Windows 启动脚本
+- start.sh      Mac/Linux 启动脚本
