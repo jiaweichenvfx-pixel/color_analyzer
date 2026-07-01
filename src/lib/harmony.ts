@@ -1,7 +1,7 @@
 import type { ExtractedColor, HarmonyScheme } from "@/types/color";
-import { hslToRgb, rgbToHex, rgbToHsl } from "./color-converters";
+import { hslToRgb, rgbToHex, rgbToHsl, rgbToLab } from "./color-converters";
 
-function makeColor(h: number, s: number, l: number): Omit<ExtractedColor, "lab" | "count" | "percentage" | "tonalRange"> & { lab: null } {
+function makeColor(h: number, s: number, l: number): Omit<ExtractedColor, "count" | "percentage" | "tonalRange"> {
   const [r, g, b] = hslToRgb(h, s, l);
   const hsl = rgbToHsl(r, g, b);
   return {
@@ -11,7 +11,7 @@ function makeColor(h: number, s: number, l: number): Omit<ExtractedColor, "lab" 
     h: hsl.h,
     s: hsl.s,
     l: hsl.l,
-    lab: null as unknown as ExtractedColor["lab"],
+    lab: rgbToLab(r, g, b),
   };
 }
 
@@ -19,7 +19,7 @@ export function generateHarmonies(
   dominant: ExtractedColor,
 ): HarmonyScheme[] {
   const { h, s, l } = dominant;
-  const mk = (hue: number) => makeColor((hue + 360) % 360, s, l) as ExtractedColor;
+  const mk = (hue: number) => makeColor((hue + 360) % 360, s, l) as unknown as ExtractedColor;
 
   return [
     {

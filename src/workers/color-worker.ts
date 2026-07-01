@@ -35,6 +35,9 @@ self.onmessage = (e: WMsg) => {
       msg.width,
       msg.height,
     );
-    self.postMessage({ type: "transfer", id: msg.id, resultData: result }, [result.buffer]);
+    (self.postMessage as (msg: unknown, transfer?: Transferable[]) => void)(
+      { type: "transfer", id: msg.id, resultData: result },
+      [result.buffer],
+    );
   }
 };

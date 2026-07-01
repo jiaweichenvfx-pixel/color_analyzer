@@ -48,6 +48,15 @@ export function generatePaletteCubeLut(palette: ExtractedColor[], _targetPalette
           continue;
         }
 
+        // Neutral protection: low-chroma pixels keep their original color
+        // so whites, grays, and blacks stay clean instead of being tinted.
+        const chroma = Math.sqrt(pixLab.a * pixLab.a + pixLab.b * pixLab.b);
+        if (chroma < 3) {
+          lines.push(`${(ir/255).toFixed(6)} ${(ig/255).toFixed(6)} ${(ib/255).toFixed(6)}`);
+          continue;
+        }
+        const neutralRamp = clamp01((chroma - 3) / 7); // smooth 0→1 from chroma 3→10
+
         // Weight ALL anchors by LAB distance
         const rawW = anchors.map(a => Math.exp(-Math.pow(deltaE(pixLab, a.lab), 2) / (2 * SIGMA * SIGMA)));
         const totalW = rawW.reduce((a, b) => a + b, 0);
@@ -60,9 +69,9 @@ export function generatePaletteCubeLut(palette: ExtractedColor[], _targetPalette
           tb += (anchors[k].rgb[2] / 255) * w;
         }
 
-        // Guarantee visible effect: min strength 0.35 even for neutral pixels
+        // Strength: sat-adaptive base × user scale × neutral ramp
         const satBoost = clamp01(hsl.s / 25);
-        const strength = (satBoost * 0.65 + (1 - satBoost) * 0.35) * strengthScale;
+        const strength = (satBoost * 0.65 + (1 - satBoost) * 0.35) * strengthScale * neutralRamp;
 
         const finalR = clamp01((ir / 255) + (tr - ir / 255) * strength);
         const finalG = clamp01((ig / 255) + (tg - ig / 255) * strength);
